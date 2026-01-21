@@ -1,7 +1,12 @@
-#!/usr/bin/env node
 import { program } from 'commander';
 import path from 'path';
 import { getMigrationState, migrate, createMigration, getDefaultMigrationsDir } from './engine.js';
+
+// Build-time version injection
+declare const __VERSION__: string;
+function getVersion(): string {
+  return typeof __VERSION__ !== 'undefined' ? __VERSION__ : 'dev';
+}
 
 // ANSI color codes
 const colors = {
@@ -15,7 +20,7 @@ const colors = {
 program
   .name('app-migrate')
   .description('File system migration tool')
-  .version('1.0.0');
+  .version(getVersion());
 
 /**
  * Resolve the project root and migrations directory from CLI options.
