@@ -26,6 +26,14 @@ jobs:
       - name: Install nextest
         uses: taiki-e/install-action@nextest
 
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Pre-install tsx for TypeScript tests
+        run: npm install -g tsx
+
       - name: Format check
         run: cargo fmt --check
 
