@@ -27,9 +27,15 @@ cargo install cargo-binstall
 cargo binstall migrate
 ```
 
-### Option 3: Build from source
+### Option 3: cargo install
 
 Requires [Rust](https://rustup.rs):
+
+```bash
+cargo install migrate
+```
+
+### Option 4: Build from source
 
 ```bash
 cargo install --git https://github.com/glideapps/migrate
