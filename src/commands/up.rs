@@ -42,6 +42,51 @@ pub fn run(
 
     if pending.is_empty() {
         println!("No pending migrations.");
+
+        // Even with no pending migrations, --baseline should clean up stale
+        // migration files that are at or below the existing baseline version.
+        if create_baseline && !keep {
+            if let Some(baseline) = &state.baseline {
+                let stale: Vec<_> = available
+                    .iter()
+                    .filter(|m| m.version.as_str() <= baseline.version.as_str())
+                    .collect();
+
+                if !stale.is_empty() {
+                    if dry_run {
+                        let asset_dir_count = stale
+                            .iter()
+                            .filter(|m| {
+                                m.file_path
+                                    .parent()
+                                    .map(|p| p.join(&m.id).is_dir())
+                                    .unwrap_or(false)
+                            })
+                            .count();
+                        if asset_dir_count > 0 {
+                            println!(
+                                "Would delete {} stale migration file(s) and {} asset directory(ies)",
+                                stale.len(),
+                                asset_dir_count
+                            );
+                        } else {
+                            println!("Would delete {} stale migration file(s)", stale.len());
+                        }
+                    } else {
+                        let deleted = delete_baselined_migrations(&baseline.version, &available)?;
+                        let (files, dirs): (Vec<&DeletedItem>, Vec<&DeletedItem>) =
+                            deleted.iter().partition(|d| !d.is_directory);
+                        if !files.is_empty() {
+                            println!("Deleted {} stale migration file(s)", files.len());
+                        }
+                        if !dirs.is_empty() {
+                            println!("Deleted {} stale asset directory(ies)", dirs.len());
+                        }
+                    }
+                }
+            }
+        }
+
         return Ok(());
     }
 

@@ -396,3 +396,85 @@ fn test_status_shows_applied_and_pending() {
     assert!(stdout.contains("Pending (1)"));
     assert!(stdout.contains("00002-second"));
 }
+
+#[test]
+fn test_up_baseline_cleans_stale_migrations() {
+    let temp_dir = create_temp_dir();
+    let migrations_dir = temp_dir.path().join("migrations");
+    fs::create_dir(&migrations_dir).unwrap();
+
+    // Create a migration and apply it with --baseline
+    let migration = migrations_dir.join("00001-init.sh");
+    fs::write(
+        &migration,
+        "#!/usr/bin/env bash\nset -euo pipefail\necho init\n",
+    )
+    .unwrap();
+    let mut perms = fs::metadata(&migration).unwrap().permissions();
+    perms.set_mode(0o755);
+    fs::set_permissions(&migration, perms).unwrap();
+
+    let output = Command::new(get_binary_path())
+        .args([
+            "--root",
+            temp_dir.path().to_str().unwrap(),
+            "up",
+            "--baseline",
+        ])
+        .output()
+        .expect("Failed to execute command");
+    assert!(output.status.success());
+
+    // Migration file should be deleted by baseline
+    assert!(
+        !migrations_dir.join("00001-init.sh").exists(),
+        "Migration file should have been deleted by baseline"
+    );
+
+    // Now simulate the old migration file reappearing (e.g., git merge)
+    let reappeared = migrations_dir.join("00001-init.sh");
+    fs::write(
+        &reappeared,
+        "#!/usr/bin/env bash\nset -euo pipefail\necho init\n",
+    )
+    .unwrap();
+    let mut perms = fs::metadata(&reappeared).unwrap().permissions();
+    perms.set_mode(0o755);
+    fs::set_permissions(&reappeared, perms).unwrap();
+
+    assert!(
+        migrations_dir.join("00001-init.sh").exists(),
+        "Migration file should exist again after simulated reappearance"
+    );
+
+    // Run up --baseline again. No migrations should be applied, but the stale
+    // file should be cleaned up.
+    let output = Command::new(get_binary_path())
+        .args([
+            "--root",
+            temp_dir.path().to_str().unwrap(),
+            "up",
+            "--baseline",
+        ])
+        .output()
+        .expect("Failed to execute command");
+
+    let stdout = String::from_utf8_lossy(&output.stdout);
+    assert!(output.status.success(), "Should succeed: {}", stdout);
+    assert!(
+        stdout.contains("No pending migrations"),
+        "Should report no pending migrations: {}",
+        stdout
+    );
+    assert!(
+        stdout.contains("stale migration"),
+        "Should report cleaning stale migrations: {}",
+        stdout
+    );
+
+    // The reappeared migration file should be deleted
+    assert!(
+        !migrations_dir.join("00001-init.sh").exists(),
+        "Stale migration file should have been cleaned up"
+    );
+}
